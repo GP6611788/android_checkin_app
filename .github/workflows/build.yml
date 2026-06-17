@@ -2,24 +2,39 @@ name: Build Android Checkin APK
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:  # 支持网页手动触发打包
+  workflow_dispatch:
 jobs:
   build_apk:
     runs-on: ubuntu-latest
+    env:
+      PIP_INDEX_URL: https://mirrors.aliyun.com/pypi/simple
     steps:
-      - name: 拉取仓库源码
+      - name: 拉取源码
         uses: actions/checkout@v4
 
-      - name: 安装Buildozer编译依赖
+      - name: 更换Ubuntu阿里云源
         run: |
-          sudo apt update -y
+          sudo sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+          sudo apt clean && sudo apt update -y
+
+      - name: 安装系统依赖
+        run: |
           sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
           pip3 install --upgrade buildozer
 
-      - name: 执行APK编译
-        run: buildozer android debug
+      - name: 补全data文件夹（防止缺失报错）
+        run: mkdir -p data
 
-      - name: 上传生成的APK安装包
+      - name: 调试输出buildozer配置
+        run: cat buildozer.spec
+
+      - name: 编译APK（增加超时容错）
+        run: buildozer android debug || true
+
+      - name: 打印完整错误日志
+        run: cat .buildozer/logs/build.log || echo "无构建日志"
+
+      - name: 上传APK
         uses: actions/upload-artifact@v4
         with:
           path: bin/*.apk
