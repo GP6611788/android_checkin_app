@@ -1,0 +1,26 @@
+name: Build Android Checkin APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # 支持网页手动触发打包
+jobs:
+  build_apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取仓库源码
+        uses: actions/checkout@v4
+
+      - name: 安装Buildozer编译依赖
+        run: |
+          sudo apt update -y
+          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          pip3 install --upgrade buildozer
+
+      - name: 执行APK编译
+        run: buildozer android debug
+
+      - name: 上传生成的APK安装包
+        uses: actions/upload-artifact@v4
+        with:
+          path: bin/*.apk
+          name: 签到APP_编译成品APK
