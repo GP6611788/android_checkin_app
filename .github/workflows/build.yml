@@ -8,47 +8,47 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PIP_INDEX_URL: https://mirrors.aliyun.com/pypi/simple
-      # 禁用Buildozer自动下载SDK，改用国内镜像预下载
       BUILDOZER_ANDROID_HOME: ${{ github.workspace }}/android-sdk
     steps:
-      - name: 拉取代码
+      - name: 拉取仓库源码
         uses: actions/checkout@v4
 
-      # 替换国内Ubuntu源
+      # 切换阿里云Ubuntu镜像源，并添加backports源解决libtinfo5缺失
       - name: 切换国内软件源
         run: |
           sudo sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+          echo "deb http://mirrors.aliyun.com/ubuntu/ noble-backports main universe" | sudo tee -a /etc/apt/sources.list
           sudo apt clean
           sudo apt update -y
 
-      # 安装依赖
-      - name: 安装编译依赖
+      # 安装系统编译依赖（单独补齐libtinfo5适配Ubuntu24.04）
+      - name: 安装Buildozer编译依赖
         run: |
-          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          sudo apt install -y libtinfo5 git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
           pip3 install --upgrade buildozer
 
-      # 补齐缺失data目录
+      # 确保资源文件夹存在
       - name: 创建资源文件夹data
         run: mkdir -p data
 
-      # 打印配置检查语法
-      - name: 校验buildozer.spec
+      # 打印配置校验语法
+      - name: 校验buildozer.spec配置文件
         run: cat buildozer.spec
 
-      # 开启详细日志执行编译
-      - name: 执行打包并输出完整日志
+      # 带详细日志执行编译，失败不终止流程以导出日志
+      - name: 执行APK编译
         run: |
           buildozer android debug --log-level 2
         continue-on-error: true
 
-      # 导出完整构建日志，方便排查
-      - name: 导出构建日志
+      # 导出完整构建日志
+      - name: 导出完整错误日志
         run: |
           ls -la .buildozer/logs/
           cat .buildozer/logs/build.log > build_error_log.txt || echo "未生成构建日志"
 
-      # 上传APK与日志文件
-      - name: 上传产物&错误日志
+      # 上传APK安装包 + 错误日志文件
+      - name: 上传产物与日志
         uses: actions/upload-artifact@v4
         with:
           path: |
