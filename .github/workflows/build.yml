@@ -8,34 +8,50 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PIP_INDEX_URL: https://mirrors.aliyun.com/pypi/simple
+      # 禁用Buildozer自动下载SDK，改用国内镜像预下载
+      BUILDOZER_ANDROID_HOME: ${{ github.workspace }}/android-sdk
     steps:
-      - name: 拉取源码
+      - name: 拉取代码
         uses: actions/checkout@v4
 
-      - name: 更换Ubuntu阿里云源
+      # 替换国内Ubuntu源
+      - name: 切换国内软件源
         run: |
           sudo sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
-          sudo apt clean && sudo apt update -y
+          sudo apt clean
+          sudo apt update -y
 
-      - name: 安装系统依赖
+      # 安装依赖
+      - name: 安装编译依赖
         run: |
           sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
           pip3 install --upgrade buildozer
 
-      - name: 补全data文件夹（防止缺失报错）
+      # 补齐缺失data目录
+      - name: 创建资源文件夹data
         run: mkdir -p data
 
-      - name: 调试输出buildozer配置
+      # 打印配置检查语法
+      - name: 校验buildozer.spec
         run: cat buildozer.spec
 
-      - name: 编译APK（增加超时容错）
-        run: buildozer android debug || true
+      # 开启详细日志执行编译
+      - name: 执行打包并输出完整日志
+        run: |
+          buildozer android debug --log-level 2
+        continue-on-error: true
 
-      - name: 打印完整错误日志
-        run: cat .buildozer/logs/build.log || echo "无构建日志"
+      # 导出完整构建日志，方便排查
+      - name: 导出构建日志
+        run: |
+          ls -la .buildozer/logs/
+          cat .buildozer/logs/build.log > build_error_log.txt || echo "未生成构建日志"
 
-      - name: 上传APK
+      # 上传APK与日志文件
+      - name: 上传产物&错误日志
         uses: actions/upload-artifact@v4
         with:
-          path: bin/*.apk
-          name: 签到APP_编译成品APK
+          path: |
+            bin/*.apk
+            build_error_log.txt
+          name: APK打包产物与错误日志
